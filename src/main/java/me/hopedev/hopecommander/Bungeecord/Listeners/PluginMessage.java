@@ -14,6 +14,8 @@ import net.md_5.bungee.event.EventHandler;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,22 +29,36 @@ public class PluginMessage implements Listener {
             BungeeMain bungeeMain = (BungeeMain) UniversalUsage.get().getPluginInstance();
             ByteArrayDataInput in = ByteStreams.newDataInput(event.getData());
             String commandToRun = in.readUTF();
-            List<String> iplist = null;
-            bungeeMain.getProxy().getConsole().sendMessage(new ComponentBuilder("[HopeCommander] Command received from " + event.getSender().getAddress().getAddress().getHostAddress() + ":" + event.getSender().getAddress().getPort() + "» " + commandToRun).create());
-            try {
-                Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(new File(bungeeMain.getDataFolder(), "config.yml"));
-                iplist = configuration.getStringList("whitelisted-ips");
-            } catch (IOException e) {
-                e.printStackTrace();
+            List<String> iplist = new ArrayList<>();
+            InetSocketAddress address;
+            if(event.getSender().getSocketAddress() instanceof InetSocketAddress) {
+                address = (InetSocketAddress) event.getSender().getSocketAddress();
+            } else {
+                address = event.getSender().getAddress();
             }
-            if (!iplist.contains(event.getSender().getAddress().getAddress().getHostAddress())) {
-                System.out.println("[HopeCommander][WARNING] Request IP "+event.getSender().getAddress().getAddress().getHostAddress()+" IS NOT ON whitelisted-ips. Not Executing command!");
-                return;
+            if(address != null) {
+                String ip = address.getHostName();
+                if(ip != null) {
+                    bungeeMain.getProxy().getConsole().sendMessage(new ComponentBuilder("[HopeCommander] Command received from " + ip + ":" + address.getPort() + "» " + commandToRun).create());
+                    try {
+                        Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(new File(bungeeMain.getDataFolder(), "config.yml"));
+                        iplist = configuration.getStringList("whitelisted-ips");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    if (!iplist.contains(ip)) {
+                        System.out.println("[HopeCommander][WARNING] Request IP " + ip + " IS NOT ON whitelisted-ips. Not Executing command!");
+                        return;
+                    }
+                    bungeeMain.getProxy().getConsole().sendMessage(new ComponentBuilder("[HopeCommander] executing...").create());
+                    //send
+                    bungeeMain.getProxy().getPluginManager().dispatchCommand(bungeeMain.getProxy().getConsole(), commandToRun);
+                } else {
+                    System.out.println("[HopeCommander][WARNING] Cannot parse request IP! Not Executing command!");
+                }
+            } else {
+                System.out.println("[HopeCommander][WARNING] Cannot parse request IP! Not Executing command!");
             }
-            bungeeMain.getProxy().getConsole().sendMessage(new ComponentBuilder("[HopeCommander] executing...").create());
-            //send
-            bungeeMain.getProxy().getPluginManager().dispatchCommand(bungeeMain.getProxy().getConsole(), commandToRun);
-
         }
     }
 }
